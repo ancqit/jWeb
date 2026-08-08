@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jWeb</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>jWeb</h1>
+      <p class="tagline">A minimal full-stack web app for Cloud Agent development.</p>
+
+      <form id="item-form">
+        <label for="item-input">Add an item</label>
+        <div class="row">
+          <input id="item-input" name="text" type="text" placeholder="What should we remember?" required />
+          <button type="submit">Add</button>
+        </div>
+      </form>
+
+      <section>
+        <h2>Items</h2>
+        <ul id="item-list"></ul>
+        <p id="empty-state" hidden>No items yet. Add one above.</p>
+      </section>
+
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
