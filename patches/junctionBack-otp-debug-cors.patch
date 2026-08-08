@@ -1,0 +1,332 @@
+From 681e7f1f31cdf9f231cd54db2bc177f1275da0b8 Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Sat, 8 Aug 2026 22:25:17 +0000
+Subject: [PATCH] Enable OTP debug fallback and allow Vercel CORS
+
+When GCP_IDENTITY_PLATFORM_API_KEY is unset (or OTP_DEBUG=true),
+serve debug OTP 123456 so login works. Allow jWeb Vercel origins.
+---
+ .env.example |   2 +
+ app/login.py | 188 +++++++++++++++++++++++++++++++++++++--------------
+ app/main.py  |  17 +++--
+ 3 files changed, 150 insertions(+), 57 deletions(-)
+
+diff --git a/.env.example b/.env.example
+index 1c88d42..efbfa9a 100644
+--- a/.env.example
++++ b/.env.example
+@@ -5,6 +5,8 @@ MONGODB_MAX_POOL_SIZE=100
+ JWT_SECRET=replace-with-at-least-32-random-characters
+ JWT_EXPIRE_MINUTES=60
+ OTP_EXPIRE_MINUTES=5
++# When true, or when GCP key is empty, OTP uses local debug code 123456
++OTP_DEBUG=true
+ GCP_IDENTITY_PLATFORM_API_KEY=
+ DIGILOCKER_CLIENT_ID=
+ DIGILOCKER_CLIENT_SECRET=
+diff --git a/app/login.py b/app/login.py
+index 9ee9aa5..64bd921 100644
+--- a/app/login.py
++++ b/app/login.py
+@@ -23,9 +23,11 @@ JWT_SECRET = os.getenv("JWT_SECRET", "")
+ JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
+ PBKDF2_ITERATIONS = 600_000
+ OTP_EXPIRE_MINUTES = int(os.getenv("OTP_EXPIRE_MINUTES", "5"))
+-GCP_IDENTITY_PLATFORM_API_KEY = os.getenv("GCP_IDENTITY_PLATFORM_API_KEY", "")
++OTP_DEBUG = os.getenv("OTP_DEBUG", "false").strip().lower() in {"1", "true", "yes", "on"}
++GCP_IDENTITY_PLATFORM_API_KEY = os.getenv("GCP_IDENTITY_PLATFORM_API_KEY", "").strip()
+ GCP_SEND_OTP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode"
+ GCP_VERIFY_OTP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPhoneNumber"
++DEBUG_OTP_CODE = "123456"
+ 
+ 
+ class RegisterRequest(BaseModel):
+@@ -73,6 +75,7 @@ class OtpRequestResponse(BaseModel):
+     message: str
+     expires_in_seconds: int
+     session_info: str
++    debug_otp: str | None = None
+ 
+ 
+ class OtpVerifyRequest(BaseModel):
+@@ -105,12 +108,20 @@ def verify_password(password: str, encoded: str) -> bool:
+ 
+ 
+ def user_summary(document: dict) -> UserSummary:
+-    return UserSummary(id=str(document["_id"]), email=document.get("email"), phone_number=document.get("phone_number"), display_name=document["display_name"])
++    return UserSummary(
++        id=str(document["_id"]),
++        email=document.get("email"),
++        phone_number=document.get("phone_number"),
++        display_name=document["display_name"],
++    )
++
+ 
++def gcp_configured() -> bool:
++    return bool(GCP_IDENTITY_PLATFORM_API_KEY)
+ 
+-def require_gcp_otp_configuration() -> None:
+-    if not GCP_IDENTITY_PLATFORM_API_KEY:
+-        raise HTTPException(status_code=503, detail="GCP Identity Platform API key is not configured")
++
++def use_debug_otp() -> bool:
++    return OTP_DEBUG or not gcp_configured()
+ 
+ 
+ def gcp_error(response: httpx.Response) -> HTTPException:
+@@ -123,11 +134,19 @@ def gcp_error(response: httpx.Response) -> HTTPException:
+ 
+ def create_access_token(user_id: ObjectId) -> str:
+     now = datetime.now(timezone.utc)
+-    return jwt.encode({"sub": str(user_id), "iat": now, "exp": now + timedelta(minutes=JWT_EXPIRE_MINUTES)}, _secret(), algorithm="HS256")
++    return jwt.encode(
++        {"sub": str(user_id), "iat": now, "exp": now + timedelta(minutes=JWT_EXPIRE_MINUTES)},
++        _secret(),
++        algorithm="HS256",
++    )
+ 
+ 
+ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+-    error = HTTPException(status_code=401, detail="Invalid or expired access token", headers={"WWW-Authenticate": "Bearer"})
++    error = HTTPException(
++        status_code=401,
++        detail="Invalid or expired access token",
++        headers={"WWW-Authenticate": "Bearer"},
++    )
+     try:
+         user_id = jwt.decode(token, _secret(), algorithms=["HS256"]).get("sub")
+         if not user_id or not ObjectId.is_valid(user_id):
+@@ -140,6 +159,57 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+     return user
+ 
+ 
++def upsert_verified_phone_user(phone_number: str, display_name: str, gcp_user_id: str | None) -> dict:
++    now = datetime.now(timezone.utc)
++    users.create_index("phone_number", unique=True, sparse=True)
++    user = users.find_one({"phone_number": phone_number})
++    if user is None:
++        document = {
++            "phone_number": phone_number,
++            "mobile_verified": True,
++            "gcp_identity_id": gcp_user_id,
++            "display_name": display_name,
++            "bio": None,
++            "avatar_url": None,
++            "created_at": now,
++            "updated_at": now,
++        }
++        try:
++            result = users.insert_one(document)
++            document["_id"] = result.inserted_id
++            user = document
++        except DuplicateKeyError:
++            user = users.find_one({"phone_number": phone_number})
++    return users.find_one_and_update(
++        {"_id": user["_id"]},
++        {
++            "$set": {
++                "mobile_verified": True,
++                "display_name": display_name,
++                "gcp_identity_id": gcp_user_id,
++                "updated_at": now,
++            }
++        },
++        return_document=ReturnDocument.AFTER,
++    )
++
++
++def store_otp_challenge(phone_number: str, display_name: str, session_info: str, debug_otp: str | None = None) -> None:
++    now = datetime.now(timezone.utc)
++    expires_at = now + timedelta(minutes=OTP_EXPIRE_MINUTES)
++    otp_requests.create_index("expires_at", expireAfterSeconds=0)
++    document = {
++        "display_name": display_name,
++        "session_hash": hashlib.sha256(session_info.encode()).hexdigest(),
++        "created_at": now,
++        "expires_at": expires_at,
++        "provider": "debug" if debug_otp else "gcp",
++    }
++    if debug_otp:
++        document["debug_otp"] = debug_otp
++    otp_requests.update_one({"phone_number": phone_number}, {"$set": document}, upsert=True)
++
++
+ @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+ def register(payload: RegisterRequest) -> TokenResponse:
+     email = str(payload.email).lower()
+@@ -147,7 +217,15 @@ def register(payload: RegisterRequest) -> TokenResponse:
+     if users.find_one({"email": email}) is not None:
+         raise HTTPException(status_code=409, detail="An account with this email already exists")
+     now = datetime.now(timezone.utc)
+-    document = {"email": email, "password_hash": hash_password(payload.password), "display_name": payload.display_name, "bio": None, "avatar_url": None, "created_at": now, "updated_at": now}
++    document = {
++        "email": email,
++        "password_hash": hash_password(payload.password),
++        "display_name": payload.display_name,
++        "bio": None,
++        "avatar_url": None,
++        "created_at": now,
++        "updated_at": now,
++    }
+     try:
+         result = users.insert_one(document)
+     except DuplicateKeyError:
+@@ -160,13 +238,26 @@ def register(payload: RegisterRequest) -> TokenResponse:
+ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -> TokenResponse:
+     user = users.find_one({"email": form.username.lower()})
+     if user is None or not verify_password(form.password, user["password_hash"]):
+-        raise HTTPException(status_code=401, detail="Incorrect email or password", headers={"WWW-Authenticate": "Bearer"})
++        raise HTTPException(
++            status_code=401,
++            detail="Incorrect email or password",
++            headers={"WWW-Authenticate": "Bearer"},
++        )
+     return TokenResponse(access_token=create_access_token(user["_id"]), user=user_summary(user))
+ 
+ 
+ @router.post("/otp/request", response_model=OtpRequestResponse)
+ def request_otp(payload: OtpRequest) -> OtpRequestResponse:
+-    require_gcp_otp_configuration()
++    if use_debug_otp():
++        session_info = f"debug-{secrets.token_urlsafe(24)}"
++        store_otp_challenge(payload.phone_number, payload.display_name, session_info, DEBUG_OTP_CODE)
++        return OtpRequestResponse(
++            message="OTP ready (debug mode — SMS provider not required)",
++            expires_in_seconds=OTP_EXPIRE_MINUTES * 60,
++            session_info=session_info,
++            debug_otp=DEBUG_OTP_CODE,
++        )
++
+     try:
+         response = httpx.post(
+             GCP_SEND_OTP_URL,
+@@ -182,55 +273,52 @@ def request_otp(payload: OtpRequest) -> OtpRequestResponse:
+     if not session_info:
+         raise HTTPException(status_code=502, detail="GCP did not return an OTP session")
+ 
+-    now = datetime.now(timezone.utc)
+-    expires_at = now + timedelta(minutes=OTP_EXPIRE_MINUTES)
+-    otp_requests.create_index("expires_at", expireAfterSeconds=0)
+-    otp_requests.update_one(
+-        {"phone_number": payload.phone_number},
+-        {"$set": {"display_name": payload.display_name, "session_hash": hashlib.sha256(session_info.encode()).hexdigest(), "created_at": now, "expires_at": expires_at}},
+-        upsert=True,
++    store_otp_challenge(payload.phone_number, payload.display_name, session_info)
++    return OtpRequestResponse(
++        message="OTP sent by GCP Identity Platform",
++        expires_in_seconds=OTP_EXPIRE_MINUTES * 60,
++        session_info=session_info,
+     )
+-    return OtpRequestResponse(message="OTP sent by GCP Identity Platform", expires_in_seconds=OTP_EXPIRE_MINUTES * 60, session_info=session_info)
+ 
+ 
+ @router.post("/otp/verify", response_model=TokenResponse)
+ def verify_otp(payload: OtpVerifyRequest) -> TokenResponse:
+-    require_gcp_otp_configuration()
+     now = datetime.now(timezone.utc)
+     session_hash = hashlib.sha256(payload.session_info.encode()).hexdigest()
+-    request = otp_requests.find_one({"phone_number": payload.phone_number, "session_hash": session_hash, "expires_at": {"$gt": now}})
++    request = otp_requests.find_one(
++        {
++            "phone_number": payload.phone_number,
++            "session_hash": session_hash,
++            "expires_at": {"$gt": now},
++        }
++    )
+     if request is None:
+         raise HTTPException(status_code=401, detail="Invalid or expired OTP session")
+-    try:
+-        response = httpx.post(
+-            GCP_VERIFY_OTP_URL,
+-            params={"key": GCP_IDENTITY_PLATFORM_API_KEY},
+-            json={"sessionInfo": payload.session_info, "code": payload.otp},
+-            timeout=15.0,
+-        )
+-    except httpx.HTTPError as exc:
+-        raise HTTPException(status_code=502, detail="Unable to reach GCP Identity Platform") from exc
+-    if response.is_error:
+-        raise gcp_error(response)
+-    verified_phone = response.json().get("phoneNumber")
+-    gcp_user_id = response.json().get("localId")
+-    if verified_phone != payload.phone_number or not gcp_user_id:
+-        raise HTTPException(status_code=401, detail="GCP phone verification did not match the request")
+ 
+-    otp_requests.delete_one({"_id": request["_id"]})
+-    users.create_index("phone_number", unique=True, sparse=True)
+-    user = users.find_one({"phone_number": payload.phone_number})
+-    if user is None:
+-        document = {"phone_number": payload.phone_number, "mobile_verified": True, "gcp_identity_id": gcp_user_id, "display_name": request["display_name"], "bio": None, "avatar_url": None, "created_at": now, "updated_at": now}
++    gcp_user_id: str | None = None
++    if request.get("provider") == "debug" or payload.session_info.startswith("debug-"):
++        expected = request.get("debug_otp") or DEBUG_OTP_CODE
++        if payload.otp != expected:
++            raise HTTPException(status_code=401, detail="Invalid OTP")
++    else:
++        if not gcp_configured():
++            raise HTTPException(status_code=503, detail="GCP Identity Platform API key is not configured")
+         try:
+-            result = users.insert_one(document)
+-            document["_id"] = result.inserted_id
+-            user = document
+-        except DuplicateKeyError:
+-            user = users.find_one({"phone_number": payload.phone_number})
+-    user = users.find_one_and_update(
+-        {"_id": user["_id"]},
+-        {"$set": {"mobile_verified": True, "gcp_identity_id": gcp_user_id, "updated_at": now}},
+-        return_document=ReturnDocument.AFTER,
+-    )
++            response = httpx.post(
++                GCP_VERIFY_OTP_URL,
++                params={"key": GCP_IDENTITY_PLATFORM_API_KEY},
++                json={"sessionInfo": payload.session_info, "code": payload.otp},
++                timeout=15.0,
++            )
++        except httpx.HTTPError as exc:
++            raise HTTPException(status_code=502, detail="Unable to reach GCP Identity Platform") from exc
++        if response.is_error:
++            raise gcp_error(response)
++        verified_phone = response.json().get("phoneNumber")
++        gcp_user_id = response.json().get("localId")
++        if verified_phone != payload.phone_number or not gcp_user_id:
++            raise HTTPException(status_code=401, detail="GCP phone verification did not match the request")
++
++    otp_requests.delete_one({"_id": request["_id"]})
++    user = upsert_verified_phone_user(payload.phone_number, request["display_name"], gcp_user_id)
+     return TokenResponse(access_token=create_access_token(user["_id"]), user=user_summary(user))
+diff --git a/app/main.py b/app/main.py
+index 69ed394..5d188fa 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -20,19 +20,22 @@ app = FastAPI(
+     version="1.0.0",
+ )
+ 
+-# Allow your Netlify frontend domain
++# Frontend origins (jWeb on Vercel, Netlify shells, local Angular)
+ origins = [
+-    "https://junctionfrontweb.netlify.app",  # production frontend
+-    "https://junctionbackoffice.netlify.app",  # if you also use backoffice
+-    "http://localhost:4200",  # local dev testing
++    "https://j-web.vercel.app",
++    "https://junctionfrontweb.netlify.app",
++    "https://junctionbackoffice.netlify.app",
++    "http://localhost:4200",
++    "http://127.0.0.1:4200",
+ ]
+ 
+ app.add_middleware(
+     CORSMiddleware,
+-    allow_origins=origins,          # domains allowed to call your backend
++    allow_origins=origins,
++    allow_origin_regex=r"https://.*\.vercel\.app",
+     allow_credentials=True,
+-    allow_methods=["*"],            # GET, POST, PUT, DELETE, etc.
+-    allow_headers=["*"],            # headers like Authorization, Content-Type
++    allow_methods=["*"],
++    allow_headers=["*"],
+ )
+ app.include_router(login_router)
+ app.include_router(digilocker_router)
+-- 
+2.43.0
+

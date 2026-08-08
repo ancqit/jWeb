@@ -21,6 +21,7 @@ export class LoginComponent {
   readonly submitting = signal(false);
   readonly sessionInfo = signal('');
   readonly expiresInSeconds = signal(300);
+  readonly debugOtp = signal('');
 
   constructor(
     private readonly auth: AuthService,
@@ -33,6 +34,7 @@ export class LoginComponent {
 
   sendOtp(): void {
     this.error.set('');
+    this.debugOtp.set('');
     const displayName = this.displayName.trim();
     const phone = this.phoneNumber.trim().replace(/\s+/g, '');
 
@@ -58,7 +60,8 @@ export class LoginComponent {
         next: (response) => {
           this.sessionInfo.set(response.session_info);
           this.expiresInSeconds.set(response.expires_in_seconds);
-          this.otp = '';
+          this.debugOtp.set(response.debug_otp?.trim() ?? '');
+          this.otp = response.debug_otp?.trim() ?? '';
           this.step.set('otp');
         },
         error: (err: Error) => this.error.set(err.message),

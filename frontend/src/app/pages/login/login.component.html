@@ -15,6 +15,11 @@
           We sent a 6-digit code to {{ e164Phone }}. It expires in
           {{ expiresInSeconds() }} seconds.
         </p>
+        @if (debugOtp()) {
+          <p class="login__debug" role="status">
+            Debug OTP (backend): <strong>{{ debugOtp() }}</strong>
+          </p>
+        }
       }
     </header>
 

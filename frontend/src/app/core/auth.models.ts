@@ -8,6 +8,8 @@ export interface OtpRequestResponse {
   message: string;
   expires_in_seconds: number;
   session_info: string;
+  /** Present when junctionBack is in OTP debug mode (no GCP key / OTP_DEBUG). */
+  debug_otp?: string | null;
 }
 
 export interface OtpVerifyPayload {

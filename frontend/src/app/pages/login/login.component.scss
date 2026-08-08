@@ -65,6 +65,16 @@
   color: var(--color-muted);
 }
 
+.login__debug {
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(212, 163, 115, 0.35);
+  border-radius: 0.35rem;
+  background: rgba(212, 163, 115, 0.1);
+  color: var(--color-ink-soft);
+  font-size: 0.875rem;
+}
+
 .login__form {
   display: flex;
   flex-direction: column;
