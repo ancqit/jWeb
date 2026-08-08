@@ -1,15 +1,15 @@
 # jWeb
 
-Angular frontend with OTP login against Junction Back.
+Angular frontend with OTP login against **[junctionBack](https://github.com/ancqit/junctionBack)**.
 
 ## Structure
 
 - `frontend/` — Angular 19 app (`http://localhost:4200`)
   - `/login` — name + phone → OTP verify
   - `/home` — post-login page (route-guarded)
-- `server/` — optional local FastAPI stub matching the same OTP contract
 
-Production API: `https://junctionback.onrender.com`  
+Backend repo: https://github.com/ancqit/junctionBack  
+Deployed API: `https://junctionback.onrender.com`  
 Docs: https://junctionback.onrender.com/docs
 
 ## Run the frontend
@@ -22,9 +22,19 @@ npm start
 
 Open `http://localhost:4200`.
 
-## OTP login API
+## Run the backend (junctionBack)
 
-Configured in `frontend/src/app/core/api.config.ts`.
+```bash
+git clone https://github.com/ancqit/junctionBack.git
+cd junctionBack
+# follow that repo’s README / README.txt.md for env + startup
+```
+
+For local API work, point `API_BASE_URL` in `frontend/src/app/core/api.config.ts` at `http://localhost:8000`.
+
+## OTP login API (from junctionBack)
+
+Configured in `frontend/src/app/core/api.config.ts` → `https://junctionback.onrender.com`.
 
 ### `POST /auth/otp/request`
 
@@ -71,19 +81,7 @@ Response:
 }
 ```
 
-> The live backend needs `GCP_IDENTITY_PLATFORM_API_KEY` set for OTP delivery. The UI currently sends a placeholder `recaptcha_token` until Google reCAPTCHA is integrated.
-
-## Optional local API stub
-
-```bash
-cd server
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-Stub OTP: `123456`. Point `API_BASE_URL` at `http://localhost:8000` to use it.
+> junctionBack needs `GCP_IDENTITY_PLATFORM_API_KEY` set for OTP delivery. The UI currently sends a placeholder `recaptcha_token` until Google reCAPTCHA is integrated.
 
 ## Build frontend
 
