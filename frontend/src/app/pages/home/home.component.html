@@ -1,0 +1,19 @@
+<section class="home" aria-labelledby="home-brand">
+  <div class="home__atmosphere" aria-hidden="true"></div>
+
+  <header class="home__top">
+    <p id="home-brand" class="home__brand">jWeb</p>
+    <button class="home__logout" type="button" (click)="logout()">
+      Sign out
+    </button>
+  </header>
+
+  <div class="home__body">
+    <p class="home__eyebrow">Welcome back</p>
+    <h1 class="home__title">{{ auth.user()?.name }}</h1>
+    <p class="home__lede">
+      You’re signed in with {{ auth.user()?.mobileNumber }}. This is your
+      workspace home — the Python API will power OTP and session tokens next.
+    </p>
+  </div>
+</section>

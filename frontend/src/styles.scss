@@ -1,0 +1,35 @@
+:root {
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Outfit', system-ui, sans-serif;
+  --color-brand: #f0e6d8;
+  --color-ink: #f3ebe0;
+  --color-ink-soft: #d8cfc2;
+  --color-muted: #a89f93;
+  --color-accent: #d4a373;
+  --color-surface: #0f1c1a;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input {
+  font: inherit;
+}

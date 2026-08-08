@@ -1,0 +1,11 @@
+node_modules
+dist
+.angular
+.idea
+.vscode
+*.log
+.DS_Store
+server/.venv
+__pycache__
+*.pyc
+.env

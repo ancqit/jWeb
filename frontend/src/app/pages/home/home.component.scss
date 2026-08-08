@@ -1,0 +1,113 @@
+.home {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  overflow: hidden;
+}
+
+.home__atmosphere {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 45% at 70% 10%, rgba(212, 163, 115, 0.22), transparent 55%),
+    radial-gradient(ellipse 55% 50% at 10% 90%, rgba(45, 106, 79, 0.4), transparent 50%),
+    linear-gradient(175deg, #13241f 0%, #0c1614 55%, #1a2e28 100%);
+  animation: atmosphere-shift 16s ease-in-out infinite alternate;
+}
+
+.home__top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  animation: panel-enter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.home__brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--color-brand);
+}
+
+.home__logout {
+  padding: 0.55rem 1rem;
+  border: 1px solid rgba(232, 220, 200, 0.22);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.home__logout:hover {
+  border-color: rgba(212, 163, 115, 0.55);
+  color: var(--color-accent);
+  background: rgba(212, 163, 115, 0.08);
+}
+
+.home__body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 36rem;
+  animation: panel-enter 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.home__eyebrow {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.home__title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--color-ink);
+}
+
+.home__lede {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--color-muted);
+}
+
+@keyframes atmosphere-shift {
+  from {
+    filter: hue-rotate(0deg) saturate(1);
+  }
+  to {
+    filter: hue-rotate(8deg) saturate(1.08);
+  }
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

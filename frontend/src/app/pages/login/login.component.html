@@ -1,0 +1,51 @@
+<section class="login" aria-labelledby="login-brand">
+  <div class="login__atmosphere" aria-hidden="true"></div>
+
+  <div class="login__panel">
+    <header class="login__header">
+      <p id="login-brand" class="login__brand">jWeb</p>
+      <h1 class="login__title">Sign in to continue</h1>
+      <p class="login__lede">
+        Enter your name and phone number to open your workspace.
+      </p>
+    </header>
+
+    <form class="login__form" (ngSubmit)="onSubmit()" novalidate>
+      <label class="field">
+        <span class="field__label">Name</span>
+        <input
+          class="field__input"
+          type="text"
+          name="name"
+          autocomplete="name"
+          [(ngModel)]="name"
+          placeholder="Your full name"
+          required
+        />
+      </label>
+
+      <label class="field">
+        <span class="field__label">Phone number</span>
+        <input
+          class="field__input"
+          type="tel"
+          name="mobileNumber"
+          autocomplete="tel"
+          inputmode="numeric"
+          maxlength="10"
+          [(ngModel)]="mobileNumber"
+          placeholder="10-digit mobile number"
+          required
+        />
+      </label>
+
+      @if (error()) {
+        <p class="login__error" role="alert">{{ error() }}</p>
+      }
+
+      <button class="login__submit" type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Signing in…' : 'Continue' }}
+      </button>
+    </form>
+  </div>
+</section>
