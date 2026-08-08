@@ -1,5 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { finalize } from 'rxjs';
+import { RECAPTCHA_TOKEN_PLACEHOLDER } from '../../core/api.config';
 import { AuthService } from '../../core/auth.service';
 
 @Component({
@@ -9,31 +12,86 @@ import { AuthService } from '../../core/auth.service';
   styleUrl: './login.component.scss',
 })
 export class LoginComponent {
-  name = '';
-  mobileNumber = '';
+  displayName = '';
+  phoneNumber = '';
+  otp = '';
+
+  readonly step = signal<'details' | 'otp'>('details');
   readonly error = signal('');
   readonly submitting = signal(false);
+  readonly sessionInfo = signal('');
+  readonly expiresInSeconds = signal(300);
 
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly router: Router,
+  ) {}
 
-  onSubmit(): void {
+  get e164Phone(): string {
+    return `+91${this.phoneNumber.trim().replace(/\s+/g, '')}`;
+  }
+
+  sendOtp(): void {
     this.error.set('');
-    const name = this.name.trim();
-    const mobile = this.mobileNumber.trim().replace(/\s+/g, '');
+    const displayName = this.displayName.trim();
+    const phone = this.phoneNumber.trim().replace(/\s+/g, '');
 
-    if (!name) {
+    if (!displayName) {
       this.error.set('Please enter your name.');
       return;
     }
 
-    if (!/^\d{10}$/.test(mobile)) {
-      this.error.set('Enter a valid 10-digit phone number.');
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      this.error.set('Enter a valid 10-digit Indian mobile number.');
       return;
     }
 
     this.submitting.set(true);
-    // Local session for now; later this connects to the Python OTP API.
-    this.auth.login(name, mobile);
-    this.submitting.set(false);
+    this.auth
+      .requestOtp({
+        display_name: displayName,
+        phone_number: `+91${phone}`,
+        recaptcha_token: RECAPTCHA_TOKEN_PLACEHOLDER,
+      })
+      .pipe(finalize(() => this.submitting.set(false)))
+      .subscribe({
+        next: (response) => {
+          this.sessionInfo.set(response.session_info);
+          this.expiresInSeconds.set(response.expires_in_seconds);
+          this.otp = '';
+          this.step.set('otp');
+        },
+        error: (err: Error) => this.error.set(err.message),
+      });
+  }
+
+  verifyOtp(): void {
+    this.error.set('');
+    const code = this.otp.trim();
+
+    if (!/^\d{6}$/.test(code)) {
+      this.error.set('Enter the 6-digit OTP.');
+      return;
+    }
+
+    this.submitting.set(true);
+    this.auth
+      .verifyOtp({
+        phone_number: this.e164Phone,
+        otp: code,
+        session_info: this.sessionInfo(),
+      })
+      .pipe(finalize(() => this.submitting.set(false)))
+      .subscribe({
+        next: () => void this.router.navigateByUrl('/home'),
+        error: (err: Error) => this.error.set(err.message),
+      });
+  }
+
+  editDetails(): void {
+    this.otp = '';
+    this.sessionInfo.set('');
+    this.step.set('details');
+    this.error.set('');
   }
 }

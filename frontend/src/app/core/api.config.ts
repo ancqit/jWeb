@@ -1,2 +1,8 @@
-/** Local Python API base URL — wire auth calls here when the backend is ready. */
-export const API_BASE_URL = 'http://localhost:8000';
+/** Junction Back API — OTP login lives here. */
+export const API_BASE_URL = 'https://junctionback.onrender.com';
+
+/**
+ * Placeholder until Google reCAPTCHA is integrated.
+ * Backend currently forwards this to GCP Identity Platform.
+ */
+export const RECAPTCHA_TOKEN_PLACEHOLDER = 'test-token';

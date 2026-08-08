@@ -4,48 +4,90 @@
   <div class="login__panel">
     <header class="login__header">
       <p id="login-brand" class="login__brand">jWeb</p>
-      <h1 class="login__title">Sign in to continue</h1>
-      <p class="login__lede">
-        Enter your name and phone number to open your workspace.
-      </p>
+      @if (step() === 'details') {
+        <h1 class="login__title">Sign in with OTP</h1>
+        <p class="login__lede">
+          Enter your name and phone number. We’ll send a one-time code to verify.
+        </p>
+      } @else {
+        <h1 class="login__title">Enter your OTP</h1>
+        <p class="login__lede">
+          We sent a 6-digit code to {{ e164Phone }}. It expires in
+          {{ expiresInSeconds() }} seconds.
+        </p>
+      }
     </header>
 
-    <form class="login__form" (ngSubmit)="onSubmit()" novalidate>
-      <label class="field">
-        <span class="field__label">Name</span>
-        <input
-          class="field__input"
-          type="text"
-          name="name"
-          autocomplete="name"
-          [(ngModel)]="name"
-          placeholder="Your full name"
-          required
-        />
-      </label>
+    @if (step() === 'details') {
+      <form class="login__form" (ngSubmit)="sendOtp()" novalidate>
+        <label class="field">
+          <span class="field__label">Name</span>
+          <input
+            class="field__input"
+            type="text"
+            name="displayName"
+            autocomplete="name"
+            [(ngModel)]="displayName"
+            placeholder="Your full name"
+            required
+          />
+        </label>
 
-      <label class="field">
-        <span class="field__label">Phone number</span>
-        <input
-          class="field__input"
-          type="tel"
-          name="mobileNumber"
-          autocomplete="tel"
-          inputmode="numeric"
-          maxlength="10"
-          [(ngModel)]="mobileNumber"
-          placeholder="10-digit mobile number"
-          required
-        />
-      </label>
+        <label class="field">
+          <span class="field__label">Phone number</span>
+          <div class="field__phone">
+            <span class="field__prefix">+91</span>
+            <input
+              class="field__input field__input--phone"
+              type="tel"
+              name="phoneNumber"
+              autocomplete="tel-national"
+              inputmode="numeric"
+              maxlength="10"
+              [(ngModel)]="phoneNumber"
+              placeholder="10-digit mobile number"
+              required
+            />
+          </div>
+        </label>
 
-      @if (error()) {
-        <p class="login__error" role="alert">{{ error() }}</p>
-      }
+        @if (error()) {
+          <p class="login__error" role="alert">{{ error() }}</p>
+        }
 
-      <button class="login__submit" type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Signing in…' : 'Continue' }}
-      </button>
-    </form>
+        <button class="login__submit" type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Sending…' : 'Send OTP' }}
+        </button>
+      </form>
+    } @else {
+      <form class="login__form" (ngSubmit)="verifyOtp()" novalidate>
+        <button class="login__back" type="button" (click)="editDetails()">
+          ← Edit details
+        </button>
+
+        <label class="field">
+          <span class="field__label">Verification code</span>
+          <input
+            class="field__input field__input--otp"
+            type="text"
+            name="otp"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            maxlength="6"
+            [(ngModel)]="otp"
+            placeholder="000000"
+            required
+          />
+        </label>
+
+        @if (error()) {
+          <p class="login__error" role="alert">{{ error() }}</p>
+        }
+
+        <button class="login__submit" type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Verifying…' : 'Verify & continue' }}
+        </button>
+      </form>
+    }
   </div>
 </section>
