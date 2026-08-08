@@ -89,3 +89,17 @@ Response:
 cd frontend
 npm run build
 ```
+
+Static output (what Vercel must publish): `frontend/dist/frontend/browser`
+
+## Deploy on Vercel
+
+This repo has a root `vercel.json` that installs/builds `frontend/` and publishes `frontend/dist/frontend/browser`.
+
+In the Vercel project:
+
+1. **Root Directory** = repository root (`.`), not a random subfolder without config
+2. Or set **Root Directory** to `frontend` and use the same output path relative to that folder: `dist/frontend/browser`
+3. Redeploy after pushing `vercel.json`
+
+Angular routes (`/login`, `/home`) are rewritten to `index.html` so deep links do not 404.
