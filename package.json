@@ -1,0 +1,16 @@
+{
+  "name": "jweb",
+  "version": "0.1.0",
+  "private": true,
+  "description": "jWeb — a minimal full-stack web application",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test test/api.test.js",
+    "lint": "node --check src/server.js && node --check test/api.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
