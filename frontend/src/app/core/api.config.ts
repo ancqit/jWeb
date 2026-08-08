@@ -1,5 +1,11 @@
-/** Backend: https://github.com/ancqit/junctionBack (deployed API). */
-export const API_BASE_URL = 'https://junctionback.onrender.com';
+/**
+ * Same-origin `/api` is rewritten:
+ * - Vercel → https://junctionback.onrender.com
+ * - Local ng serve → proxy.conf.json
+ *
+ * Backend: https://github.com/ancqit/junctionBack
+ */
+export const API_BASE_URL = '/api';
 
 /**
  * Placeholder until Google reCAPTCHA is integrated.

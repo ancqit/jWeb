@@ -55,6 +55,11 @@ export class AuthService {
     if (error instanceof HttpErrorResponse) {
       const detail = error.error?.detail;
       if (typeof detail === 'string' && detail.trim()) {
+        if (detail.includes('GCP Identity Platform API key')) {
+          return new Error(
+            'OTP is unavailable: set GCP_IDENTITY_PLATFORM_API_KEY on the junctionBack Render service, then retry.',
+          );
+        }
         return new Error(detail);
       }
       if (Array.isArray(detail) && detail[0]?.msg) {

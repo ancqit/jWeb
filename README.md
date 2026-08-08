@@ -103,3 +103,14 @@ In the Vercel project:
 3. Redeploy after pushing `vercel.json`
 
 Angular routes (`/login`, `/home`) are rewritten to `index.html` so deep links do not 404.
+
+API calls use same-origin `/api/*`, rewritten by Vercel to `https://junctionback.onrender.com/*` (avoids CORS). Local `ng serve` uses `frontend/proxy.conf.json` the same way.
+
+### Login requirements on junctionBack (Render)
+
+OTP will fail until these are set on the **junctionBack** Render service:
+
+1. `GCP_IDENTITY_PLATFORM_API_KEY` — required to send/verify SMS OTP
+2. Optional but recommended: add your Vercel origin to CORS in `app/main.py` (not required when using the `/api` proxy)
+
+Also integrate a real `recaptcha_token` (currently a placeholder) before production phone auth.
